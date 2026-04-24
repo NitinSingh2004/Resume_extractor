@@ -9,9 +9,13 @@ from groq import Groq
 import re
 
 # ==========================
-# CONFIG
+# CONFIG (LOCAL + CLOUD)
 # ==========================
-API_KEY = os.getenv("GROQ_API_KEY")
+try:
+    API_KEY = st.secrets["GROQ_API_KEY"]
+except:
+    API_KEY = os.getenv("GROQ_API_KEY")
+
 client = Groq(api_key=API_KEY)
 
 # ==========================
@@ -26,7 +30,7 @@ def pdf_to_text(path):
 # ==========================
 # PROMPT
 # ==========================
-def build_prompt(text):
+def build_prompt(text, target_role):
     return f"""
 You are a resume parser.
 
@@ -93,23 +97,27 @@ Resume Text:
 {text[:4000]}
 """
 
+
 # ==========================
-# LLM
+# LLM EXTRACTION
 # ==========================
-def extract_with_llm(text):
+def extract_with_llm(text, target_role):
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             temperature=0,
             messages=[
                 {"role": "system", "content": "Return raw JSON only."},
-                {"role": "user", "content": build_prompt(text)}
+                {"role": "user", "content": build_prompt(text, target_role)}
             ]
         )
 
         content = response.choices[0].message.content.strip()
+
+        # Remove markdown if present
         content = re.sub(r"```json|```", "", content).strip()
 
+        # Extract JSON safely
         match = re.search(r"\{.*\}", content, re.DOTALL)
         if not match:
             return None
@@ -117,63 +125,79 @@ def extract_with_llm(text):
         return json.loads(match.group())
 
     except Exception as e:
-        st.error(e)
+        st.error(f"LLM Error: {e}")
         return None
 
 # ==========================
 # UI
 # ==========================
-st.title("📂 Resume Folder Upload → Excel")
+st.set_page_config(page_title="Resume Parser", layout="wide")
 
-zip_file = st.file_uploader("Upload ZIP Folder of Resumes", type=["zip"])
+st.title("📂 Resume Folder Upload → Excel Parser")
+
+# 🔥 NEW: User input for job profile
+target_role = st.text_input("🎯 Enter Target Job Profile (e.g., Data Scientist, Accountant)")
+
+zip_file = st.file_uploader("📁 Upload ZIP Folder of Resumes", type=["zip"])
 
 # ==========================
 # PROCESS
 # ==========================
-if st.button("🚀 Process Folder"):
+if st.button("🚀 Process Resumes"):
 
-    if not zip_file:
-        st.warning("Upload ZIP file")
+    if not target_role:
+        st.warning("Please enter target job profile")
         st.stop()
 
-    # Create temp dir
+    if not zip_file:
+        st.warning("Please upload ZIP file")
+        st.stop()
+
     temp_dir = tempfile.mkdtemp()
 
-    # Save zip
     zip_path = os.path.join(temp_dir, zip_file.name)
     with open(zip_path, "wb") as f:
         f.write(zip_file.read())
 
-    # Extract
+    # Extract ZIP
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(temp_dir)
 
-    # Folder name = zip name
     folder_name = os.path.splitext(zip_file.name)[0]
 
     all_data = []
     pdf_files = []
 
-    # Find all PDFs
+    # Collect PDFs
     for root, _, files in os.walk(temp_dir):
         for file in files:
-            if file.endswith(".pdf"):
+            if file.lower().endswith(".pdf"):
                 pdf_files.append(os.path.join(root, file))
+
+    if not pdf_files:
+        st.error("No PDF files found in ZIP")
+        st.stop()
 
     progress = st.progress(0)
 
+    # Process each PDF
     for i, pdf_path in enumerate(pdf_files):
-        st.write(f"Processing: {os.path.basename(pdf_path)}")
+        st.write(f"📄 Processing: {os.path.basename(pdf_path)}")
 
         text = pdf_to_text(pdf_path)
         if not text.strip():
             continue
 
-        extracted = extract_with_llm(text)
+        extracted = extract_with_llm(text, target_role)
         if not extracted:
             continue
 
-        extracted["skills"] = ", ".join(extracted.get("skills", []))
+        # Convert skills list to string
+        extracted["skills"] = ", ".join(extracted.get("skills") or [])
+
+        # 🔥 Add target profile column (useful for filtering later)
+        extracted["target_role"] = target_role
+
         all_data.append(extracted)
 
         progress.progress((i + 1) / len(pdf_files))
@@ -181,19 +205,24 @@ if st.button("🚀 Process Folder"):
     # ==========================
     # SAVE EXCEL
     # ==========================
-    if all_data:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+    if all_data:
         df = pd.DataFrame(all_data)
 
         output_file = f"{folder_name}.xlsx"
         df.to_excel(output_file, index=False)
 
-        st.success("✅ Done!")
+        st.success("✅ Processing Complete!")
 
+        # Preview table
+        st.dataframe(df)
+
+        # Download button
         with open(output_file, "rb") as f:
             st.download_button(
                 "📥 Download Excel",
                 f,
-                file_name=output_file
+                file_name=output_file,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
     else:
-        st.error("No data extracted")
+        st.error("No data extracted from resumes")
