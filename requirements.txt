@@ -1,0 +1,6 @@
+streamlit
+pandas
+pdfminer.six
+groq
+python-dotenv
+openpyxl
