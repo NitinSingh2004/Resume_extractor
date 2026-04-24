@@ -61,6 +61,17 @@ Work Status Rules:
 - If only internships → "internship"
 - If no work experience → "fresher"
 
+
+🚫 IMPORTANT EXPERIENCE RULE:
+- DO NOT include:
+  - schooling (school, college, degree duration)
+  - academic projects
+  - training programs
+  - coursework
+- ONLY count:
+  - real company work experience
+  - internships (only if no full-time job exists)
+  
 Other Rules:
 - Normalize names, cities, states
 - Skills → remove versions (Python 3 → Python)
