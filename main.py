@@ -34,6 +34,8 @@ def build_prompt(text, target_role):
     return f"""
 You are a resume parser.
 
+Target Job Profile: {target_role}
+
 Return ONLY valid JSON. No markdown. No explanation.
 
 Fields (ALL must be present):
@@ -54,38 +56,52 @@ Fields (ALL must be present):
 
 Rules:
 - If any field is missing → return null
-- Do NOT guess any information
+- Do NOT guess randomly
 
-Work Status Rules:
-- If candidate has full-time job experience → "experience"
-- If only internships → "internship"
-- If no work experience → "fresher"
+=========================
+JOB ROLE RULE
+=========================
+- If job role is mentioned → extract it
+- If NOT mentioned:
+  - Infer from internship, training, projects, and skills
+  - Align with Target Job Profile: {target_role}
 
+=========================
+EXPERIENCE RULE (CRITICAL)
+=========================
+- INCLUDE ONLY:
+  - Full-time job experience
 
-🚫 IMPORTANT EXPERIENCE RULE:
-- DO NOT include:
-  - schooling (school, college, degree duration)
-  - academic projects
-  - training programs
-  - coursework
-- ONLY count:
-  - real company work experience
-  - internships (only if no full-time job exists)
-  
-Other Rules:
+- DO NOT INCLUDE:
+  - Internship duration
+  - Training programs
+  - School/college duration
+  - Academic projects
+
+- If candidate has ONLY internship:
+  - experience = 0
+  - work_status = "internship"
+
+- If candidate has full-time job:
+  - experience = total months (job only)
+  - work_status = "experience"
+
+- If no job or internship:
+  - experience = 0
+  - work_status = "fresher"
+
+=========================
+OTHER RULES
+=========================
 - Normalize names, cities, states
 - Skills → remove versions (Python 3 → Python)
-- Experience:
-  - Convert years → months
-  - Return integer only
-- Address:
-  - Only street/locality (no pincode/country)
-- current_company:
-  - Most recent company
-- job_role:
-  - Most recent role/title
+- Address → only locality
+- current_company → most recent company
+- job_role → most relevant role
 
-STRICT OUTPUT FORMAT:
+=========================
+STRICT OUTPUT FORMAT
+=========================
 
 {{
   "name": "",
