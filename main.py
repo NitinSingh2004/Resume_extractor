@@ -11,7 +11,6 @@ import re
 # ==========================
 # CONFIG
 # ==========================
-
 API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=API_KEY)
 
@@ -29,32 +28,69 @@ def pdf_to_text(path):
 # ==========================
 def build_prompt(text):
     return f"""
-Extract the following fields from the resume text.
-Return VALID JSON ONLY.
+You are a resume parser.
 
-Fields:
+Return ONLY valid JSON. No markdown. No explanation.
+
+Fields (ALL must be present):
 - name
 - phone
+- email
 - address
 - city
 - state
+- gender
+- marital_status
+- current_company
+- job_role
+- work_status (experience | fresher | internship)
 - experience (total experience in months as an integer)
 - qualification
-- skills (array of skill names only, without version numbers or specifics)
+- skills (array of skill names only)
 
 Rules:
-- If a field is missing, unclear, or not mentioned, return "Other".
-- Correct spelling mistakes and incomplete words when clearly inferable.
-- Normalize names, cities, states, and skills to their standard form.
-- For experience: Calculate total work experience in months. If only years are given, convert to months (e.g., 2 years = 24 months).
-- For skills: Extract only the core skill name without versions, numbers, or specifics (e.g., "Python 3.8" → "Python", "React 18" → "React").
-- For address: Include only street/locality, exclude pincode, country code, or other extra details.
-- Do NOT guess unknown information.
-- Do NOT add explanations or extra text.
-- JSON keys must always be present.
+- If any field is missing → return null
+- Do NOT guess any information
+
+Work Status Rules:
+- If candidate has full-time job experience → "experience"
+- If only internships → "internship"
+- If no work experience → "fresher"
+
+Other Rules:
+- Normalize names, cities, states
+- Skills → remove versions (Python 3 → Python)
+- Experience:
+  - Convert years → months
+  - Return integer only
+- Address:
+  - Only street/locality (no pincode/country)
+- current_company:
+  - Most recent company
+- job_role:
+  - Most recent role/title
+
+STRICT OUTPUT FORMAT:
+
+{{
+  "name": "",
+  "phone": "",
+  "email": "",
+  "address": "",
+  "city": "",
+  "state": "",
+  "gender": null,
+  "marital_status": null,
+  "current_company": null,
+  "job_role": null,
+  "work_status": null,
+  "experience": 0,
+  "qualification": "",
+  "skills": []
+}}
 
 Resume Text:
-{text[:4000]}  # truncate for safety
+{text[:4000]}
 """
 
 # ==========================
@@ -145,7 +181,7 @@ if st.button("🚀 Process Folder"):
     # ==========================
     # SAVE EXCEL
     # ==========================
-    if all_data:
+    if all_data:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
         df = pd.DataFrame(all_data)
 
         output_file = f"{folder_name}.xlsx"
