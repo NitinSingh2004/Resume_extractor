@@ -13,6 +13,7 @@ import re
 # ==========================
 
 API_KEY = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=API_KEY)
 
 # ==========================
 # PDF TEXT EXTRACTION
