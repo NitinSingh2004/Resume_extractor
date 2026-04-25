@@ -124,7 +124,6 @@ Resume Text:
 {text[:4000]}
 """
 
-
 # ==========================
 # LLM EXTRACTION
 # ==========================
@@ -163,8 +162,80 @@ st.set_page_config(page_title="Resume Parser", layout="wide")
 st.title("📂 Resume Folder Upload → Excel Parser")
 
 # 🔥 NEW: User input for job profile
-target_role = st.text_input("🎯 Enter Target Job Profile (e.g., Data Scientist, Accountant)")
 
+st.title("Job Profile Selector")
+
+job_roles = [
+    # AI / Data
+    "Data Scientist", "Machine Learning Engineer", "AI Engineer",
+    "Deep Learning Engineer", "NLP Engineer", "Computer Vision Engineer",
+    "Data Analyst", "Business Intelligence Analyst", "Data Engineer",
+    "Big Data Engineer", "Research Scientist (AI/ML)",
+
+    # Software Development
+    "Software Engineer", "Backend Developer", "Frontend Developer",
+    "Full Stack Developer", "Web Developer", "Mobile App Developer",
+    "Game Developer", "Embedded Systems Engineer",
+
+    # DevOps / Cloud
+    "DevOps Engineer", "Cloud Engineer", "Site Reliability Engineer",
+    "Platform Engineer", "Infrastructure Engineer",
+
+    # Cybersecurity
+    "Cybersecurity Analyst", "Ethical Hacker", "Security Engineer",
+    "Network Security Engineer", "Information Security Analyst",
+
+    # IT / Networking
+    "System Administrator", "Network Engineer", "IT Support Specialist",
+    "Database Administrator", "Solutions Architect",
+
+    # Product / Design
+    "Product Manager", "Project Manager", "Program Manager",
+    "UI/UX Designer", "UX Researcher", "Graphic Designer",
+
+    # Business / Finance
+    "Accountant", "Financial Analyst", "Investment Banker",
+    "Business Analyst", "Management Consultant",
+
+    # Marketing / Sales
+    "Marketing Manager", "Digital Marketing Specialist",
+    "SEO Specialist", "Content Strategist", "Sales Executive",
+
+    # HR / Operations
+    "HR Manager", "Recruiter", "Talent Acquisition Specialist",
+    "Operations Manager",
+
+    # Healthcare
+    "Doctor", "Nurse", "Pharmacist", "Medical Lab Technician",
+    "Healthcare Administrator",
+
+    # Education
+    "Teacher", "Professor", "Trainer", "Instructional Designer",
+
+    # Legal
+    "Lawyer", "Legal Advisor", "Paralegal",
+
+    # Creative / Media
+    "Content Writer", "Copywriter", "Video Editor",
+    "Animator", "Journalist",
+
+    # Engineering (Core)
+    "Mechanical Engineer", "Civil Engineer", "Electrical Engineer",
+    "Electronics Engineer", "Automobile Engineer",
+
+    # Others
+    "Entrepreneur", "Freelancer", "Student", "Intern", "Other"
+]
+
+selected_role = st.selectbox("🎯 Select Target Job Profile", job_roles)
+
+if selected_role == "Other":
+    custom_role = st.text_input("✍️ Enter Custom Job Profile")
+    target_role = custom_role if custom_role else None
+else:
+    target_role = selected_role
+
+st.write("✅ Selected Role:", target_role)
 zip_file = st.file_uploader("📁 Upload ZIP Folder of Resumes", type=["zip"])
 
 # ==========================
