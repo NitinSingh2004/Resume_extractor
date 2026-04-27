@@ -4,3 +4,4 @@ pdfminer.six
 groq
 python-dotenv
 openpyxl
+pdfplumber
