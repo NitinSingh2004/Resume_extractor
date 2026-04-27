@@ -4,12 +4,12 @@ import pandas as pd
 import streamlit as st
 import zipfile
 import tempfile
-from pdfminer.high_level import extract_text
+import pdfplumber
 from groq import Groq
 import re
 
 # ==========================
-# CONFIG (LOCAL + CLOUD)
+# CONFIG
 # ==========================
 try:
     API_KEY = st.secrets["GROQ_API_KEY"]
@@ -19,22 +19,35 @@ except:
 client = Groq(api_key=API_KEY)
 
 # ==========================
-# PDF TEXT EXTRACTION
+# PDF TEXT EXTRACTION (AI-friendly)
 # ==========================
 def pdf_to_text(path):
+    text = ""
     try:
-        return extract_text(path)
+        with pdfplumber.open(path) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
     except:
-        return ""
+        pass
+    return text
+
+# ==========================
+# CLEAN COLUMN NAME
+# ==========================
+def clean_col(role):
+    return role.lower().replace(" ", "_").replace("/", "_")
 
 # ==========================
 # PROMPT
 # ==========================
-def build_prompt(text, target_role):
+
+
+
+
+
+def build_prompt(text):
     return f"""
 You are a resume parser.
-
-Target Job Profile: {target_role}
 
 Return ONLY valid JSON. No markdown. No explanation.
 
@@ -54,6 +67,10 @@ Fields (ALL must be present):
 - qualification
 - skills (array of skill names only)
 
+- github
+- linkedin
+- portfolio
+
 Rules:
 - If any field is missing → return null
 - Do NOT guess randomly
@@ -64,7 +81,7 @@ JOB ROLE RULE
 - If job role is mentioned → extract it
 - If NOT mentioned:
   - Infer from internship, training, projects, and skills
-  - Align with Target Job Profile: {target_role}
+  
 
 =========================
 EXPERIENCE RULE (CRITICAL)
@@ -89,6 +106,16 @@ EXPERIENCE RULE (CRITICAL)
 - If no job or internship:
   - experience = 0
   - work_status = "fresher"
+
+=========================
+LINK EXTRACTION RULE
+=========================
+- Extract:
+  - GitHub profile URL
+  - LinkedIn profile URL
+  - Portfolio / personal website
+
+- If not present → return null
 
 =========================
 OTHER RULES
@@ -117,7 +144,10 @@ STRICT OUTPUT FORMAT
   "work_status": null,
   "experience": 0,
   "qualification": "",
-  "skills": []
+  "skills": [],
+  "github": null,
+  "linkedin": null,
+  "portfolio": null
 }}
 
 Resume Text:
@@ -127,23 +157,21 @@ Resume Text:
 # ==========================
 # LLM EXTRACTION
 # ==========================
-def extract_with_llm(text, target_role):
+def extract_with_llm(text):
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             temperature=0,
             messages=[
                 {"role": "system", "content": "Return raw JSON only."},
-                {"role": "user", "content": build_prompt(text, target_role)}
+                {"role": "user", "content": build_prompt(text)}
             ]
         )
 
         content = response.choices[0].message.content.strip()
 
-        # Remove markdown if present
         content = re.sub(r"```json|```", "", content).strip()
 
-        # Extract JSON safely
         match = re.search(r"\{.*\}", content, re.DOTALL)
         if not match:
             return None
@@ -155,87 +183,44 @@ def extract_with_llm(text, target_role):
         return None
 
 # ==========================
-# UI
+# STREAMLIT UI
 # ==========================
 st.set_page_config(page_title="Resume Parser", layout="wide")
 
-st.title("📂 Resume Folder Upload → Excel Parser")
-
-# 🔥 NEW: User input for job profile
-
-st.title("Job Profile Selector")
+st.title("📂 AI Resume Parser → Multi Role Excel Generator")
 
 job_roles = [
-    # AI / Data
     "Data Scientist", "Machine Learning Engineer", "AI Engineer",
-    "Deep Learning Engineer", "NLP Engineer", "Computer Vision Engineer",
-    "Data Analyst", "Business Intelligence Analyst", "Data Engineer",
-    "Big Data Engineer", "Research Scientist (AI/ML)",
-
-    # Software Development
     "Software Engineer", "Backend Developer", "Frontend Developer",
-    "Full Stack Developer", "Web Developer", "Mobile App Developer",
-    "Game Developer", "Embedded Systems Engineer",
-
-    # DevOps / Cloud
-    "DevOps Engineer", "Cloud Engineer", "Site Reliability Engineer",
-    "Platform Engineer", "Infrastructure Engineer",
-
-    # Cybersecurity
-    "Cybersecurity Analyst", "Ethical Hacker", "Security Engineer",
-    "Network Security Engineer", "Information Security Analyst",
-
-    # IT / Networking
-    "System Administrator", "Network Engineer", "IT Support Specialist",
-    "Database Administrator", "Solutions Architect",
-
-    # Product / Design
-    "Product Manager", "Project Manager", "Program Manager",
-    "UI/UX Designer", "UX Researcher", "Graphic Designer",
-
-    # Business / Finance
-    "Accountant", "Financial Analyst", "Investment Banker",
-    "Business Analyst", "Management Consultant",
-
-    # Marketing / Sales
-    "Marketing Manager", "Digital Marketing Specialist",
-    "SEO Specialist", "Content Strategist", "Sales Executive",
-
-    # HR / Operations
-    "HR Manager", "Recruiter", "Talent Acquisition Specialist",
-    "Operations Manager",
-
-    # Healthcare
-    "Doctor", "Nurse", "Pharmacist", "Medical Lab Technician",
-    "Healthcare Administrator",
-
-    # Education
-    "Teacher", "Professor", "Trainer", "Instructional Designer",
-
-    # Legal
-    "Lawyer", "Legal Advisor", "Paralegal",
-
-    # Creative / Media
-    "Content Writer", "Copywriter", "Video Editor",
-    "Animator", "Journalist",
-
-    # Engineering (Core)
+    "Full Stack Developer", "Web Developer",
+    "DevOps Engineer", "Cloud Engineer",
+    "Cybersecurity Analyst",
+    "System Administrator", "Network Engineer",
+    "Product Manager", "UI/UX Designer",
+    "Accountant", "Business Analyst",
+    "Digital Marketing Specialist",
+    "HR Manager",
+    "Teacher",
+    "Content Writer",
     "Mechanical Engineer", "Civil Engineer", "Electrical Engineer",
-    "Electronics Engineer", "Automobile Engineer",
-
-    # Others
-    "Entrepreneur", "Freelancer", "Student", "Intern", "Other"
+    "Student", "Intern", "Other"
 ]
 
-selected_role = st.selectbox("🎯 Select Target Job Profile", job_roles)
+# Multi-select roles
+selected_roles = st.multiselect("🎯 Select Target Job Profiles", job_roles)
 
-if selected_role == "Other":
-    custom_role = st.text_input("✍️ Enter Custom Job Profile")
-    target_role = custom_role if custom_role else None
-else:
-    target_role = selected_role
+# Custom roles
+custom_roles = st.text_input("✍️ Add Custom Roles (comma separated)")
 
-st.write("✅ Selected Role:", target_role)
+if custom_roles:
+    custom_list = [r.strip() for r in custom_roles.split(",") if r.strip()]
+    selected_roles.extend(custom_list)
+
+target_roles = list(set(selected_roles))
+
+st.write("✅ Selected Roles:", target_roles)
+
+# Upload ZIP
 zip_file = st.file_uploader("📁 Upload ZIP Folder of Resumes", type=["zip"])
 
 # ==========================
@@ -243,8 +228,8 @@ zip_file = st.file_uploader("📁 Upload ZIP Folder of Resumes", type=["zip"])
 # ==========================
 if st.button("🚀 Process Resumes"):
 
-    if not target_role:
-        st.warning("Please enter target job profile")
+    if not target_roles:
+        st.warning("Please select at least one job role")
         st.stop()
 
     if not zip_file:
@@ -257,7 +242,6 @@ if st.button("🚀 Process Resumes"):
     with open(zip_path, "wb") as f:
         f.write(zip_file.read())
 
-    # Extract ZIP
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(temp_dir)
 
@@ -266,35 +250,45 @@ if st.button("🚀 Process Resumes"):
     all_data = []
     pdf_files = []
 
-    # Collect PDFs
     for root, _, files in os.walk(temp_dir):
         for file in files:
             if file.lower().endswith(".pdf"):
                 pdf_files.append(os.path.join(root, file))
 
     if not pdf_files:
-        st.error("No PDF files found in ZIP")
+        st.error("No PDF files found")
         st.stop()
 
     progress = st.progress(0)
 
-    # Process each PDF
+    # ==========================
+    # PROCESS EACH PDF
+    # ==========================
     for i, pdf_path in enumerate(pdf_files):
+
         st.write(f"📄 Processing: {os.path.basename(pdf_path)}")
 
         text = pdf_to_text(pdf_path)
         if not text.strip():
             continue
 
-        extracted = extract_with_llm(text, target_role)
+        extracted = extract_with_llm(text)
         if not extracted:
             continue
 
-        # Convert skills list to string
+        # Skills formatting
         extracted["skills"] = ", ".join(extracted.get("skills") or [])
 
-        # 🔥 Add target profile column (useful for filtering later)
-        extracted["target_role"] = target_role
+        # ✅ Add selected roles in every row
+        extracted["target_roles"] = ", ".join(target_roles)
+
+        # ✅ Expand job roles into columns
+        for role in target_roles:
+            col_name = f"job_role_{clean_col(role)}"
+            extracted[col_name] = role
+
+        # Remove raw dict
+        extracted.pop("job_roles", None)
 
         all_data.append(extracted)
 
@@ -311,10 +305,8 @@ if st.button("🚀 Process Resumes"):
 
         st.success("✅ Processing Complete!")
 
-        # Preview table
         st.dataframe(df)
 
-        # Download button
         with open(output_file, "rb") as f:
             st.download_button(
                 "📥 Download Excel",
@@ -323,4 +315,4 @@ if st.button("🚀 Process Resumes"):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
     else:
-        st.error("No data extracted from resumes")
+        st.error("No data extracted")
