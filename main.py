@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import zipfile
 import tempfile
-import pdfplumber
+from pdfminer.high_level import extract_text
 from groq import Groq
 import re
 
@@ -24,12 +24,15 @@ client = Groq(api_key=API_KEY)
 def pdf_to_text(path):
     text = ""
     try:
-        with pdfplumber.open(path) as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() or ""
-    except:
+        # extract_text handles opening the file and looping through pages for you
+        text = extract_text(path)
+    except Exception as e:
+        print(f"Error: {e}")
         pass
+    
+    print(text)
     return text
+    
 
 # ==========================
 # CLEAN COLUMN NAME
